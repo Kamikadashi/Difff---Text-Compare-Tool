@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Difff - Text Compare</title>
+	<style>
+		body { 
+			font-family: Arial, sans-serif; 
+			margin: 0; 
+			padding: 20px; 
+			transition: all 0.3s; 
+			box-sizing: border-box; 
+		}
+		.container { 
+			display: flex; 
+			flex-direction: column; 
+			gap: 20px; 
+			max-width: 100%; 
+			width: 100%; 
+			overflow-x: auto; 
+		}
+		.column { 
+			flex: 1; 
+			min-width: 300px; 
+		}
+		textarea { 
+			width: 100%; 
+			height: 200px; 
+			border: 1px solid #555; 
+			transition: all 0.3s; 
+			font-family: monospace; 
+			box-sizing: border-box; 
+			user-select: text; 
+		}
+		.highlight { 
+			background-color: #99EEFF; 
+			transition: all 0.3s; 
+			font-weight: bold; 
+		}
+		.diff-table {
+			width: 100%; 
+			border-collapse: collapse;
+			table-layout: fixed; 
+		}
+		.diff-table th, .diff-table td {
+			border: 1px solid #555;
+			padding: 5px;
+			vertical-align: top;
+			white-space: pre-wrap;
+			word-wrap: break-word;
+			font-family: monospace;
+			box-sizing: border-box; 
+		}
+		.stats-container {
+			display: flex;
+			gap: 20px;
+			max-width: 100%; 
+		}
+		.stats { 
+			font-size: 0.9em; 
+		}
+		h1 { 
+			transition: all 0.3s; 
+			max-width: 100%; 
+		}
+		input[type="submit"], button { 
+			padding: 10px 20px; 
+			border: none; 
+			cursor: pointer; 
+			transition: all 0.3s; 
+			background-color: #4a4a4a; 
+			color: #ffffff; 
+			font-family: Arial, sans-serif; 
+			font-size: 1em; 
+		}
+		input[type="submit"]:hover, button:hover { 
+			opacity: 0.8; 
+		}
+		label { 
+			margin-left: 10px; 
+		}
+		.controls { 
+			margin-top: 20px; 
+			max-width: 100%; 
+			display: flex; 
+			align-items: center; 
+			gap: 10px; 
+		}
+		.theme-switch { 
+			margin-left: 20px; 
+		}
+		input[type="color"] { 
+			padding: 5px; 
+			border: none; 
+			cursor: pointer; 
+			background-color: #4a4a4a; 
+			border-radius: 0; 
+			height: 40px; 
+			width: 40px; 
+		}
+	</style>
+</head>
+<body>
+    <h1>Difff - Text Compare</h1>
+    <form method="post">
+        <div class="container" id="textContainer">
+            <div class="column">
+                <textarea name="sequenceA" placeholder="Enter Text A">VALUE_A</textarea>
+            </div>
+            <div class="column">
+                <textarea name="sequenceB" placeholder="Enter Text B">VALUE_B</textarea>
+            </div>
+        </div>
+        <div class="controls">
+            <input type="submit" value="Compare" id="compareButton">
+            <input type="color" id="highlightColorPicker" onchange="toggleHighlight()" value="#99EEFF">
+            <button type="button" onclick="resetHighlightColor()">Reset</button>
+            <button type="button" id="toggleLayoutButton" onclick="toggleLayout()">Toggle Layout</button>
+            <span class="theme-switch">
+                Theme: 
+                <select id="themeSelect" onchange="changeTheme()">
+                    <option value="dark">Dark</option>
+                    <option value="light">Light</option>
+                    <option value="sepia">Sepia</option>
+                </select>
+            </span>
+        </div>
+    </form>
+    <div id="result" class="container">
+        <!-- DIFF_RESULT -->
+    </div>
+    <script>
+        // Default highlight color
+        const DEFAULT_HIGHLIGHT_COLOR = '#99EEFF';
+
+        // Load saved highlight color from localStorage or use default
+        const savedColor = localStorage.getItem('highlightColor') || DEFAULT_HIGHLIGHT_COLOR;
+        document.getElementById('highlightColorPicker').value = savedColor;
+
+        // Load saved theme from localStorage or use default
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.getElementById('themeSelect').value = savedTheme;
+
+        // Load saved layout state from localStorage or use default
+        const savedLayout = localStorage.getItem('layout') || 'column';
+        const textContainer = document.getElementById('textContainer');
+        textContainer.style.flexDirection = savedLayout;
+
+        // Function to calculate luminance of a color
+        function getLuminance(color) {
+            const hex = color.replace('#', '');
+            const r = parseInt(hex.substring(0, 2), 16) / 255;
+            const g = parseInt(hex.substring(2, 4), 16) / 255;
+            const b = parseInt(hex.substring(4, 6), 16) / 255;
+            return (0.2126 * r + 0.7152 * g + 0.0722 * b); // Luminance formula
+        }
+
+        function toggleHighlight() {
+            const highlights = document.querySelectorAll('.highlight');
+            const highlightColor = document.getElementById('highlightColorPicker').value;
+            const luminance = getLuminance(highlightColor);
+
+            highlights.forEach(el => {
+                el.style.backgroundColor = highlightColor;
+                el.style.fontWeight = 'bold'; // Ensure text is bold
+                if (luminance < 0.5) { // If luminance is below threshold, make text white
+                    el.style.color = '#ffffff';
+                } else { // If luminance is above or equal to threshold, make text black
+                    el.style.color = '#000000';
+                }
+            });
+            // Save the selected color to localStorage
+            localStorage.setItem('highlightColor', highlightColor);
+        }
+
+        function resetHighlightColor() {
+            // Reset to default color
+            document.getElementById('highlightColorPicker').value = DEFAULT_HIGHLIGHT_COLOR;
+            toggleHighlight(); // Apply the default color
+            localStorage.removeItem('highlightColor'); // Remove saved color
+        }
+
+        function changeTheme() {
+            const theme = document.getElementById('themeSelect').value;
+            const body = document.body;
+            const compareButton = document.getElementById('compareButton');
+            const colorPicker = document.getElementById('highlightColorPicker');
+            const resetButton = document.querySelector('button[onclick="resetHighlightColor()"]');
+            const toggleLayoutButton = document.getElementById('toggleLayoutButton');
+            const textareas = document.querySelectorAll('textarea');
+            const diffTables = document.querySelectorAll('.diff-table');
+            const statsContainers = document.querySelectorAll('.stats-container');
+
+            switch(theme) {
+                case 'light':
+                    body.style.backgroundColor = '#ffffff';
+                    body.style.color = '#000000';
+                    compareButton.style.backgroundColor = '#4a4a4a';
+                    compareButton.style.color = '#ffffff';
+                    colorPicker.style.backgroundColor = '#4a4a4a';
+                    resetButton.style.backgroundColor = '#4a4a4a';
+                    resetButton.style.color = '#ffffff';
+                    toggleLayoutButton.style.backgroundColor = '#4a4a4a';
+                    toggleLayoutButton.style.color = '#ffffff';
+                    textareas.forEach(ta => {
+                        ta.style.backgroundColor = '#ffffff';
+                        ta.style.color = '#000000';
+                    });
+                    diffTables.forEach(table => {
+                        table.style.backgroundColor = '#ffffff';
+                        table.style.color = '#000000';
+                    });
+                    statsContainers.forEach(sc => {
+                        sc.style.color = '#000000';
+                    });
+                    break;
+                case 'dark':
+                    body.style.backgroundColor = '#1e1e1e';
+                    body.style.color = '#ffffff';
+                    compareButton.style.backgroundColor = '#4a4a4a';
+                    compareButton.style.color = '#ffffff';
+                    colorPicker.style.backgroundColor = '#4a4a4a';
+                    resetButton.style.backgroundColor = '#4a4a4a';
+                    resetButton.style.color = '#ffffff';
+                    toggleLayoutButton.style.backgroundColor = '#4a4a4a';
+                    toggleLayoutButton.style.color = '#ffffff';
+                    textareas.forEach(ta => {
+                        ta.style.backgroundColor = '#2d2d2d';
+                        ta.style.color = '#ffffff';
+                    });
+                    diffTables.forEach(table => {
+                        table.style.backgroundColor = '#2d2d2d';
+                        table.style.color = '#ffffff';
+                    });
+                    statsContainers.forEach(sc => {
+                        sc.style.color = '#ffffff';
+                    });
+                    break;
+                case 'sepia':
+                    body.style.backgroundColor = '#f4ecd8';
+                    body.style.color = '#5b4636';
+                    compareButton.style.backgroundColor = '#8b7d6b';
+                    compareButton.style.color = '#ffffff';
+                    colorPicker.style.backgroundColor = '#8b7d6b';
+                    resetButton.style.backgroundColor = '#8b7d6b';
+                    resetButton.style.color = '#ffffff';
+                    toggleLayoutButton.style.backgroundColor = '#8b7d6b';
+                    toggleLayoutButton.style.color = '#ffffff';
+                    textareas.forEach(ta => {
+                        ta.style.backgroundColor = '#fbf0d9';
+                        ta.style.color = '#5b4636';
+                    });
+                    diffTables.forEach(table => {
+                        table.style.backgroundColor = '#fbf0d9';
+                        table.style.color = '#5b4636';
+                    });
+                    statsContainers.forEach(sc => {
+                        sc.style.color = '#5b4636';
+                    });
+                    break;
+            }
+            // Save the selected theme to localStorage
+            localStorage.setItem('theme', theme);
+        }
+
+        function toggleLayout() {
+            const container = document.getElementById('textContainer');
+            if (container.style.flexDirection === 'row') {
+                container.style.flexDirection = 'column';
+            } else {
+                container.style.flexDirection = 'row';
+            }
+            // Save the layout state to localStorage
+            localStorage.setItem('layout', container.style.flexDirection);
+        }
+
+        // Set initial theme
+        changeTheme();
+        // Call toggleHighlight immediately after the page loads
+        toggleHighlight();
+    </script>
+</body>
+</html>
