@@ -4,102 +4,105 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Difff - Text Compare</title>
-	<style>
-		body { 
-			font-family: Arial, sans-serif; 
-			margin: 0; 
-			padding: 20px; 
-			transition: all 0.3s; 
-			box-sizing: border-box; 
-		}
-		.container { 
-			display: flex; 
-			flex-direction: column; 
-			gap: 20px; 
-			max-width: 100%; 
-			width: 100%; 
-			overflow-x: auto; 
-		}
-		.column { 
-			flex: 1; 
-			min-width: 300px; 
-		}
-		textarea { 
-			width: 100%; 
-			height: 200px; 
-			border: 1px solid #555; 
-			transition: all 0.3s; 
-			font-family: monospace; 
-			box-sizing: border-box; 
-			user-select: text; 
-		}
-		.highlight { 
-			background-color: #99EEFF; 
-			transition: all 0.3s; 
-			font-weight: bold; 
-		}
-		.diff-table {
-			width: 100%; 
-			border-collapse: collapse;
-			table-layout: fixed; 
-		}
-		.diff-table th, .diff-table td {
-			border: 1px solid #555;
-			padding: 5px;
-			vertical-align: top;
-			white-space: pre-wrap;
-			word-wrap: break-word;
-			font-family: monospace;
-			box-sizing: border-box; 
-		}
-		.stats-container {
-			display: flex;
-			gap: 20px;
-			max-width: 100%; 
-		}
-		.stats { 
-			font-size: 0.9em; 
-		}
-		h1 { 
-			transition: all 0.3s; 
-			max-width: 100%; 
-		}
-		input[type="submit"], button { 
-			padding: 10px 20px; 
-			border: none; 
-			cursor: pointer; 
-			transition: all 0.3s; 
-			background-color: #4a4a4a; 
-			color: #ffffff; 
-			font-family: Arial, sans-serif; 
-			font-size: 1em; 
-		}
-		input[type="submit"]:hover, button:hover { 
-			opacity: 0.8; 
-		}
-		label { 
-			margin-left: 10px; 
-		}
-		.controls { 
-			margin-top: 20px; 
-			max-width: 100%; 
-			display: flex; 
-			align-items: center; 
-			gap: 10px; 
-		}
-		.theme-switch { 
-			margin-left: 20px; 
-		}
-		input[type="color"] { 
-			padding: 5px; 
-			border: none; 
-			cursor: pointer; 
-			background-color: #4a4a4a; 
-			border-radius: 0; 
-			height: 40px; 
-			width: 40px; 
-		}
-	</style>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            transition: all 0.3s; 
+            box-sizing: border-box; 
+            opacity: 0; /* Initially hidden */
+            transition: opacity 0.5s ease-in-out; /* Smooth fade-in */
+        }
+        .container { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 20px; 
+            max-width: 100%; 
+            width: 100%; 
+            overflow-x: auto; 
+        }
+        .column { 
+            flex: 1; 
+            min-width: 300px; 
+        }
+        textarea { 
+            width: 100%; 
+            height: 200px; 
+            border: 1px solid #555; 
+            transition: all 0.3s; 
+            font-family: monospace; 
+            box-sizing: border-box; 
+            user-select: text; 
+        }
+        .highlight { 
+            background-color: #99EEFF; 
+            transition: all 0.3s; 
+            font-weight: bold; 
+        }
+        .diff-table {
+            width: 100%; 
+            border-collapse: collapse;
+            table-layout: fixed; 
+        }
+        .diff-table th, .diff-table td {
+            border: 1px solid #555;
+            padding: 5px;
+            vertical-align: top;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: monospace;
+            box-sizing: border-box; 
+            user-select: none; /* Prevent text selection by default */
+        }
+        .stats-container {
+            display: flex;
+            gap: 20px;
+            max-width: 100%; 
+        }
+        .stats { 
+            font-size: 0.9em; 
+        }
+        h1 { 
+            transition: all 0.3s; 
+            max-width: 100%; 
+        }
+        input[type="submit"], button { 
+            padding: 10px 20px; 
+            border: none; 
+            cursor: pointer; 
+            transition: all 0.3s; 
+            background-color: #4a4a4a; 
+            color: #ffffff; 
+            font-family: Arial, sans-serif; 
+            font-size: 1em; 
+        }
+        input[type="submit"]:hover, button:hover { 
+            opacity: 0.8; 
+        }
+        label { 
+            margin-left: 10px; 
+        }
+        .controls { 
+            margin-top: 20px; 
+            max-width: 100%; 
+            display: flex; 
+            align-items: center; 
+            gap: 10px; 
+        }
+        .theme-switch { 
+            margin-left: 20px; 
+        }
+        input[type="color"] { 
+            padding: 5px; 
+            border: none; 
+            cursor: pointer; 
+            background-color: #4a4a4a; 
+            border-radius: 0; 
+            height: 40px; 
+            width: 40px; 
+        }
+    </style>
 </head>
 <body>
     <h1>Difff - Text Compare</h1>
@@ -275,10 +278,48 @@
             localStorage.setItem('layout', container.style.flexDirection);
         }
 
+        // Function to handle text selection in one column
+        function handleTextSelection(event) {
+            const table = event.currentTarget.closest('table');
+            const allCells = table.querySelectorAll('td');
+
+            // Disable text selection in all cells
+            allCells.forEach(cell => {
+                cell.style.userSelect = 'none';
+            });
+
+            // Enable text selection in the current column
+            const currentCell = event.currentTarget;
+            const columnIndex = Array.from(currentCell.parentElement.children).indexOf(currentCell);
+
+            // Enable text selection for all cells in the same column
+            table.querySelectorAll('tr').forEach(row => {
+                const cell = row.children[columnIndex];
+                if (cell) {
+                    cell.style.userSelect = 'text';
+                }
+            });
+        }
+
+        // Add event listeners to table cells
+        function addSelectionListeners() {
+            const tableCells = document.querySelectorAll('.diff-table td');
+            tableCells.forEach(cell => {
+                cell.addEventListener('mousedown', handleTextSelection);
+            });
+        }
+
         // Set initial theme
         changeTheme();
         // Call toggleHighlight immediately after the page loads
         toggleHighlight();
+        // Add selection listeners after the page loads
+        addSelectionListeners();
+
+        // Fade in the body content after the page has loaded
+        window.addEventListener('load', () => {
+            document.body.style.opacity = '1';
+        });
     </script>
 </body>
 </html>
