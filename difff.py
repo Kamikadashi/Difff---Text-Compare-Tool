@@ -28,46 +28,98 @@ def compare_characters(line1, line2):
     return ''.join(diff_line1), ''.join(diff_line2)
 
 def compare_texts(text1, text2):
-    """Compare two texts line by line and character by character."""
+    """Compare two texts using a sliding window approach to align lines within 15 lines."""
     lines1 = text1.splitlines()
     lines2 = text2.splitlines()
-    matcher = difflib.SequenceMatcher(None, lines1, lines2, autojunk=False)
-    
     aligned_lines = []
+    window_size = 15
+    threshold = 0.5  # Similarity threshold for line matching
 
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag == 'equal':
-            for line in lines1[i1:i2]:
-                escaped = escape_and_preserve(line)
-                aligned_lines.append((escaped, escaped))
-        elif tag == 'replace':
-            len1 = i2 - i1
-            len2 = j2 - j1
-            max_len = max(len1, len2)
-            for idx in range(max_len):
-                if idx < len1 and idx < len2:
-                    line1 = lines1[i1 + idx]
-                    line2 = lines2[j1 + idx]
-                    # Perform character-level diff regardless of similarity
-                    diff_line1, diff_line2 = compare_characters(line1, line2)
+    i = 0
+    j = 0
+
+    while i < len(lines1) or j < len(lines2):
+        # Handle remaining lines when one text is exhausted
+        if i >= len(lines1):
+            while j < len(lines2):
+                highlighted = f'<span class="highlight">{escape_and_preserve(lines2[j])}</span>'
+                aligned_lines.append(('', highlighted))
+                j += 1
+            break
+        if j >= len(lines2):
+            while i < len(lines1):
+                highlighted = f'<span class="highlight">{escape_and_preserve(lines1[i])}</span>'
+                aligned_lines.append((highlighted, ''))
+                i += 1
+            break
+
+        line1 = lines1[i]
+        line2 = lines2[j]
+
+        if line1 == line2:
+            # Exact match, add as equal
+            escaped = escape_and_preserve(line1)
+            aligned_lines.append((escaped, escaped))
+            i += 1
+            j += 1
+        else:
+            # Search in text2 within window for best match to current line1 (skip empty lines)
+            best_j = -1
+            best_ratio = 0
+            max_j = min(j + window_size, len(lines2))
+            for candidate_j in range(j, max_j):
+                current_line = lines2[candidate_j]
+                if current_line.strip() == '':  # Skip empty lines during search
+                    continue
+                seq = difflib.SequenceMatcher(None, line1, current_line)
+                ratio = seq.ratio()
+                if ratio > best_ratio:
+                    best_ratio = ratio
+                    best_j = candidate_j
+
+            # Search in text1 within window for best match to current line2 (skip empty lines)
+            best_i = -1
+            best_ratio_i = 0
+            max_i = min(i + window_size, len(lines1))
+            for candidate_i in range(i, max_i):
+                current_line = lines1[candidate_i]
+                if current_line.strip() == '':  # Skip empty lines during search
+                    continue
+                seq = difflib.SequenceMatcher(None, line2, current_line)
+                ratio = seq.ratio()
+                if ratio > best_ratio_i:
+                    best_ratio_i = ratio
+                    best_i = candidate_i
+
+            # Determine which potential match is better
+            if best_ratio >= threshold or best_ratio_i >= threshold:
+                if best_ratio >= best_ratio_i:
+                    # Insert lines from j to best_j-1 as additions
+                    for insert_j in range(j, best_j):
+                        highlighted = f'<span class="highlight">{escape_and_preserve(lines2[insert_j])}</span>'
+                        aligned_lines.append(('', highlighted))
+                    # Align line1 with lines2[best_j] and compare
+                    diff_line1, diff_line2 = compare_characters(line1, lines2[best_j])
                     aligned_lines.append((diff_line1, diff_line2))
-                elif idx < len1:
-                    line1 = lines1[i1 + idx]
-                    highlighted1 = f'<span class="highlight">{escape_and_preserve(line1)}</span>'
-                    aligned_lines.append((highlighted1, ''))
-                elif idx < len2:
-                    line2 = lines2[j1 + idx]
-                    highlighted2 = f'<span class="highlight">{escape_and_preserve(line2)}</span>'
-                    aligned_lines.append(('', highlighted2))
-        elif tag == 'delete':
-            for line in lines1[i1:i2]:
-                highlighted1 = f'<span class="highlight">{escape_and_preserve(line)}</span>'
-                aligned_lines.append((highlighted1, ''))
-        elif tag == 'insert':
-            for line in lines2[j1:j2]:
-                highlighted2 = f'<span class="highlight">{escape_and_preserve(line)}</span>'
-                aligned_lines.append(('', highlighted2))
-    
+                    i += 1
+                    j = best_j + 1
+                else:
+                    # Delete lines from i to best_i-1 as removals
+                    for delete_i in range(i, best_i):
+                        highlighted = f'<span class="highlight">{escape_and_preserve(lines1[delete_i])}</span>'
+                        aligned_lines.append((highlighted, ''))
+                    # Align lines1[best_i] with line2 and compare
+                    diff_line1, diff_line2 = compare_characters(lines1[best_i], line2)
+                    aligned_lines.append((diff_line1, diff_line2))
+                    i = best_i + 1
+                    j += 1
+            else:
+                # No good match, treat as character-level replacement
+                diff_line1, diff_line2 = compare_characters(line1, line2)
+                aligned_lines.append((diff_line1, diff_line2))
+                i += 1
+                j += 1
+
     # Generate HTML table rows
     html_diff = []
     for left, right in aligned_lines:
@@ -77,11 +129,8 @@ def compare_texts(text1, text2):
                 <td class="result-text">{right}</td>
             </tr>
         ''')
-    
-    # Combine all rows into a single HTML string
     full_html_diff = ''.join(html_diff)
     return full_html_diff
-
 
 def get_stats(text):
     """Generate statistics about the text."""
